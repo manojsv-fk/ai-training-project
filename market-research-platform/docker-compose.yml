@@ -37,10 +37,43 @@ services:
     volumes:
       - ./backend:/app
       - uploads_data:/app/uploads
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      - NEWS_FETCHER_URL=http://news_fetcher:8001
+      - EMBEDDING_PROVIDER=huggingface
     # TODO: Add healthcheck for backend
+
+  # ─── News Fetcher Microservice ───────────────────────────────────────────
+  news_fetcher:
+    build:
+      context: ./news-fetcher
+      dockerfile: Dockerfile
+    container_name: mrip_news_fetcher
+    ports:
+      - "8001:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mrip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mrip_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-market_research}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      NEWS_FETCH_INTERVAL_MINUTES: ${NEWS_FETCH_INTERVAL_MINUTES:-30}
+      NEWS_CATEGORIES: ${NEWS_CATEGORIES:-markets,industry,tech,economy}
+      EMBEDDING_PROVIDER: huggingface
+    volumes:
+      - ./news-fetcher:/app
+      - hf_cache:/root/.cache/huggingface
+    restart: unless-stopped
 
   # ─── React Frontend ──────────────────────────────────────────────────────────
   frontend:
@@ -61,3 +94,4 @@ services:
 volumes:
   postgres_data:
   uploads_data:
+  hf_cache:

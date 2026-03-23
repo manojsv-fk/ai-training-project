@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     # ── LLM Provider ("groq", "gemini", or "openai") ────────────────────
     llm_provider: str = "gemini"
 
+    # ── Embedding Provider ("huggingface", "gemini", or "openai") ──────
+    embedding_provider: str = "huggingface"
+    huggingface_embedding_model: str = "all-MiniLM-L12-v2"
+
     # ── Gemini ──────────────────────────────────────────────────────────
     gemini_api_key: str = ""
     gemini_llm_model: str = "models/gemini-2.0-flash"
@@ -58,6 +62,9 @@ class Settings(BaseSettings):
 
     # ── Scheduler ─────────────────────────────────────────────────────────
     weekly_brief_cron: str = "0 8 * * 1"  # Monday 8am
+
+    # ── News Fetcher Microservice ──────────────────────────────────────────
+    news_fetcher_url: str = ""  # e.g. http://news_fetcher:8001; empty = use local ingestion
 
     # ── App ───────────────────────────────────────────────────────────────
     app_env: str = "development"

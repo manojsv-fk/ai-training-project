@@ -1,7 +1,8 @@
 # filepath: market-research-platform/backend/core/llamaindex_engine.py
 # Singleton wrapper around all LlamaIndex resources.
 # Initializes the LLM, embedding model, PGVectorStore, and VectorStoreIndex.
-# Supports configurable providers: Gemini (default), Groq, or OpenAI.
+# Supports configurable LLM providers (Gemini, Groq, OpenAI) and
+# embedding providers (HuggingFace local, Gemini, OpenAI).
 
 import logging
 
@@ -13,63 +14,72 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-# Embedding dimensions per provider
+# Embedding dimensions per embedding provider
 EMBED_DIMS = {
-    "gemini": 3072,   # models/gemini-embedding-001
-    "groq":   3072,   # uses Gemini embeddings
-    "openai": 1536,   # text-embedding-3-small
+    "gemini":      3072,   # models/gemini-embedding-001
+    "openai":      1536,   # text-embedding-3-small
+    "huggingface": 384,    # all-MiniLM-L12-v2
 }
 
 
-def _build_gemini():
-    """Create Gemini LLM and embedding model."""
+def _build_llm_gemini():
+    """Create Gemini LLM."""
     from llama_index.llms.gemini import Gemini
-    from llama_index.embeddings.gemini import GeminiEmbedding
 
-    llm = Gemini(
+    return Gemini(
         model=settings.gemini_llm_model,
         api_key=settings.gemini_api_key,
         temperature=0.1,
     )
-    embed_model = GeminiEmbedding(
-        model_name=settings.gemini_embedding_model,
-        api_key=settings.gemini_api_key,
-    )
-    return llm, embed_model
 
 
-def _build_groq():
-    """Create Groq LLM and Gemini embedding model."""
+def _build_llm_groq():
+    """Create Groq LLM."""
     from llama_index.llms.groq import Groq
-    from llama_index.embeddings.gemini import GeminiEmbedding
 
-    llm = Groq(
+    return Groq(
         model=settings.groq_llm_model,
         api_key=settings.groq_api_key,
         temperature=0.1,
     )
-    embed_model = GeminiEmbedding(
-        model_name=settings.gemini_embedding_model,
-        api_key=settings.gemini_api_key,
-    )
-    return llm, embed_model
 
 
-def _build_openai():
-    """Create OpenAI LLM and embedding model."""
+def _build_llm_openai():
+    """Create OpenAI LLM."""
     from llama_index.llms.openai import OpenAI
-    from llama_index.embeddings.openai import OpenAIEmbedding
 
-    llm = OpenAI(
+    return OpenAI(
         model=settings.openai_llm_model,
         api_key=settings.openai_api_key,
         temperature=0.1,
     )
-    embed_model = OpenAIEmbedding(
+
+
+def _build_embed_huggingface():
+    """Create free, local HuggingFace embedding model (no API key needed)."""
+    from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+
+    return HuggingFaceEmbedding(model_name=settings.huggingface_embedding_model)
+
+
+def _build_embed_gemini():
+    """Create Gemini embedding model."""
+    from llama_index.embeddings.gemini import GeminiEmbedding
+
+    return GeminiEmbedding(
+        model_name=settings.gemini_embedding_model,
+        api_key=settings.gemini_api_key,
+    )
+
+
+def _build_embed_openai():
+    """Create OpenAI embedding model."""
+    from llama_index.embeddings.openai import OpenAIEmbedding
+
+    return OpenAIEmbedding(
         model=settings.openai_embedding_model,
         api_key=settings.openai_api_key,
     )
-    return llm, embed_model
 
 
 class LlamaIndexEngine:
@@ -90,20 +100,37 @@ class LlamaIndexEngine:
         Set up LLM, embeddings, vector store, and index.
         Called once at application startup in main.py lifespan hook.
         """
-        provider = settings.llm_provider.lower()
-        logger.info(f"Initializing LlamaIndex engine with provider: {provider}")
+        llm_provider = settings.llm_provider.lower()
+        embed_provider = settings.embedding_provider.lower()
+        logger.info(
+            f"Initializing LlamaIndex engine with LLM provider: {llm_provider}, "
+            f"embedding provider: {embed_provider}"
+        )
 
-        # Build LLM + embeddings based on configured provider
-        if provider == "gemini":
-            self.llm, self.embed_model = _build_gemini()
-        elif provider == "groq":
-            self.llm, self.embed_model = _build_groq()
-        elif provider == "openai":
-            self.llm, self.embed_model = _build_openai()
+        # Build LLM based on configured LLM provider
+        if llm_provider == "gemini":
+            self.llm = _build_llm_gemini()
+        elif llm_provider == "groq":
+            self.llm = _build_llm_groq()
+        elif llm_provider == "openai":
+            self.llm = _build_llm_openai()
         else:
-            raise ValueError(f"Unknown LLM provider: {provider}. Use 'groq', 'gemini', or 'openai'.")
+            raise ValueError(f"Unknown LLM provider: {llm_provider}. Use 'groq', 'gemini', or 'openai'.")
 
-        embed_dim = EMBED_DIMS.get(provider, 768)
+        # Build embedding model based on configured embedding provider
+        if embed_provider == "huggingface":
+            self.embed_model = _build_embed_huggingface()
+        elif embed_provider == "gemini":
+            self.embed_model = _build_embed_gemini()
+        elif embed_provider == "openai":
+            self.embed_model = _build_embed_openai()
+        else:
+            raise ValueError(
+                f"Unknown embedding provider: {embed_provider}. "
+                "Use 'huggingface', 'gemini', or 'openai'."
+            )
+
+        embed_dim = EMBED_DIMS.get(embed_provider, 384)
 
         # Set LlamaIndex global defaults so all components use these models
         LISettings.llm = self.llm
@@ -136,7 +163,10 @@ class LlamaIndexEngine:
             storage_context=self._storage_context,
         )
 
-        logger.info(f"LlamaIndex engine initialized successfully (provider={provider}, embed_dim={embed_dim}).")
+        logger.info(
+            f"LlamaIndex engine initialized successfully "
+            f"(llm={llm_provider}, embeddings={embed_provider}, embed_dim={embed_dim})."
+        )
 
     def get_index(self) -> VectorStoreIndex:
         """Return the initialized VectorStoreIndex. Raise if not initialized."""

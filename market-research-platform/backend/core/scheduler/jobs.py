@@ -36,13 +36,20 @@ def start_scheduler():
     Called from main.py lifespan startup hook.
     """
     # Job 1: News sync on a configurable interval
-    scheduler.add_job(
-        func=_news_sync_job,
-        trigger=IntervalTrigger(minutes=settings.news_sync_interval_minutes),
-        id="news_sync",
-        replace_existing=True,
-        name="News Article Sync",
-    )
+    # Skip if news-fetcher microservice is configured (it handles its own scheduling)
+    if settings.news_fetcher_url:
+        logger.info(
+            f"News fetcher microservice configured at {settings.news_fetcher_url}; "
+            "skipping local news_sync scheduler job."
+        )
+    else:
+        scheduler.add_job(
+            func=_news_sync_job,
+            trigger=IntervalTrigger(minutes=settings.news_sync_interval_minutes),
+            id="news_sync",
+            replace_existing=True,
+            name="News Article Sync",
+        )
 
     # Job 2: Weekly brief generation on a cron schedule
     try:
@@ -57,10 +64,16 @@ def start_scheduler():
         logger.warning(f"Failed to schedule weekly brief (invalid cron?): {e}")
 
     scheduler.start()
-    logger.info(
-        f"Scheduler started: news sync every {settings.news_sync_interval_minutes}min, "
-        f"weekly brief cron: {settings.weekly_brief_cron}"
-    )
+    if settings.news_fetcher_url:
+        logger.info(
+            f"Scheduler started: news sync delegated to {settings.news_fetcher_url}, "
+            f"weekly brief cron: {settings.weekly_brief_cron}"
+        )
+    else:
+        logger.info(
+            f"Scheduler started: news sync every {settings.news_sync_interval_minutes}min, "
+            f"weekly brief cron: {settings.weekly_brief_cron}"
+        )
 
 
 def shutdown_scheduler():

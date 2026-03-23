@@ -1,0 +1,63 @@
+# filepath: market-research-platform/docker-compose.yml
+# Docker Compose configuration for local development and demo.
+# Spins up all services: React frontend, FastAPI backend, and PostgreSQL with pgvector.
+
+version: "3.9"
+
+services:
+  # ─── PostgreSQL + pgvector ───────────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: mrip_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mrip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mrip_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-market_research}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mrip}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── FastAPI Backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mrip_backend
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    # TODO: Add healthcheck for backend
+
+  # ─── React Frontend ──────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mrip_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+    depends_on:
+      - backend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000
+
+volumes:
+  postgres_data:
+  uploads_data:

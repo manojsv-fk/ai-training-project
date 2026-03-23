@@ -1,7 +1,7 @@
 # filepath: market-research-platform/backend/core/llamaindex_engine.py
 # Singleton wrapper around all LlamaIndex resources.
 # Initializes the LLM, embedding model, PGVectorStore, and VectorStoreIndex.
-# Supports configurable providers: Gemini (default) or OpenAI.
+# Supports configurable providers: Gemini (default), Groq, or OpenAI.
 
 import logging
 
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Embedding dimensions per provider
 EMBED_DIMS = {
     "gemini": 3072,   # models/gemini-embedding-001
+    "groq":   3072,   # uses Gemini embeddings
     "openai": 1536,   # text-embedding-3-small
 }
 
@@ -28,6 +29,23 @@ def _build_gemini():
     llm = Gemini(
         model=settings.gemini_llm_model,
         api_key=settings.gemini_api_key,
+        temperature=0.1,
+    )
+    embed_model = GeminiEmbedding(
+        model_name=settings.gemini_embedding_model,
+        api_key=settings.gemini_api_key,
+    )
+    return llm, embed_model
+
+
+def _build_groq():
+    """Create Groq LLM and Gemini embedding model."""
+    from llama_index.llms.groq import Groq
+    from llama_index.embeddings.gemini import GeminiEmbedding
+
+    llm = Groq(
+        model=settings.groq_llm_model,
+        api_key=settings.groq_api_key,
         temperature=0.1,
     )
     embed_model = GeminiEmbedding(
@@ -78,10 +96,12 @@ class LlamaIndexEngine:
         # Build LLM + embeddings based on configured provider
         if provider == "gemini":
             self.llm, self.embed_model = _build_gemini()
+        elif provider == "groq":
+            self.llm, self.embed_model = _build_groq()
         elif provider == "openai":
             self.llm, self.embed_model = _build_openai()
         else:
-            raise ValueError(f"Unknown LLM provider: {provider}. Use 'gemini' or 'openai'.")
+            raise ValueError(f"Unknown LLM provider: {provider}. Use 'groq', 'gemini', or 'openai'.")
 
         embed_dim = EMBED_DIMS.get(provider, 768)
 

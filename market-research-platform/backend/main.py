@@ -14,7 +14,7 @@ from config import settings
 from database import init_db, AsyncSessionLocal
 from core.llamaindex_engine import get_engine
 from core.scheduler.jobs import start_scheduler, shutdown_scheduler, get_app_state
-from api.routes import documents, chat, reports, trends, news
+from api.routes import documents, chat, reports, trends, news, scraper
 
 # Configure logging
 logging.basicConfig(
@@ -83,6 +83,7 @@ app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(trends.router, prefix="/api/trends", tags=["trends"])
 app.include_router(news.router, prefix="/api/news", tags=["news"])
+app.include_router(scraper.router, prefix="/api/scraper", tags=["scraper"])
 
 
 @app.get("/api/status")
@@ -110,8 +111,15 @@ async def status():
 async def get_settings():
     """Return current application settings (read-only sensitive fields masked)."""
     provider = settings.llm_provider
-    llm_model = settings.gemini_llm_model if provider == "gemini" else settings.openai_llm_model
-    embed_model = settings.gemini_embedding_model if provider == "gemini" else settings.openai_embedding_model
+    if provider == "groq":
+        llm_model = settings.groq_llm_model
+        embed_model = settings.gemini_embedding_model
+    elif provider == "gemini":
+        llm_model = settings.gemini_llm_model
+        embed_model = settings.gemini_embedding_model
+    else:
+        llm_model = settings.openai_llm_model
+        embed_model = settings.openai_embedding_model
 
     return {
         "llm_provider": provider,
@@ -126,6 +134,7 @@ async def get_settings():
         "max_upload_size_mb": settings.max_upload_size_mb,
         "api_keys_configured": {
             "gemini": bool(settings.gemini_api_key),
+            "groq": bool(settings.groq_api_key),
             "openai": bool(settings.openai_api_key),
             "llama_cloud": bool(settings.llama_cloud_api_key),
             "newsapi": bool(settings.newsapi_key),

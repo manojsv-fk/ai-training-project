@@ -12,6 +12,7 @@ from database import Base
 class SourceType(str, enum.Enum):
     pdf_upload = "pdf_upload"
     news_article = "news_article"
+    web_scrape = "web_scrape"
 
 
 class Document(Base):

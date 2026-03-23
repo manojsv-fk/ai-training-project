@@ -1,5 +1,6 @@
 # filepath: market-research-platform/backend/core/ingestion/news_ingestion.py
-# News article ingestion pipeline. Pulls articles from NewsAPI and Google News RSS,
+# News article ingestion pipeline. Pulls articles from NewsAPI and free RSS feeds
+# (Google News, Bing News, Reddit, Yahoo News),
 # converts them to LlamaIndex Documents, and indexes them into PGVectorStore.
 
 import logging
@@ -32,10 +33,12 @@ async def run_news_sync(engine: LlamaIndexEngine, db: AsyncSession) -> dict:
     skipped = 0
 
     for topic in topics:
-        # Fetch from both NewsAPI and Google News RSS
+        # Fetch from NewsAPI and all free RSS sources
         articles = await _fetch_from_newsapi(topic)
-        rss_articles = _fetch_from_google_news_rss(topic)
-        articles.extend(rss_articles)
+        articles.extend(_fetch_from_google_news_rss(topic))
+        articles.extend(_fetch_from_bing_news_rss(topic))
+        articles.extend(_fetch_from_reddit_rss(topic))
+        articles.extend(_fetch_from_yahoo_news_rss(topic))
         total_fetched += len(articles)
 
         for article in articles:
@@ -161,4 +164,88 @@ def _fetch_from_google_news_rss(topic: str) -> list[dict]:
         return articles
     except Exception as e:
         logger.warning(f"Google News RSS fetch failed for topic '{topic}': {e}")
+        return []
+
+
+def _fetch_from_bing_news_rss(topic: str) -> list[dict]:
+    """
+    Fetch articles from Bing News RSS for a given topic.
+    No API key required. Returns dicts in the same format as NewsAPI articles.
+    """
+    try:
+        encoded_topic = quote_plus(topic)
+        url = f"https://www.bing.com/news/search?q={encoded_topic}&format=rss"
+        feed = feedparser.parse(url)
+
+        articles = []
+        for entry in feed.entries[:10]:
+            articles.append({
+                "title": entry.get("title", ""),
+                "description": entry.get("summary", ""),
+                "content": entry.get("summary", ""),
+                "url": entry.get("link", ""),
+                "publishedAt": entry.get("published", ""),
+                "source": {"name": "Bing News"},
+            })
+
+        logger.info(f"Bing News RSS: fetched {len(articles)} articles for topic '{topic}'")
+        return articles
+    except Exception as e:
+        logger.warning(f"Bing News RSS fetch failed for topic '{topic}': {e}")
+        return []
+
+
+def _fetch_from_reddit_rss(topic: str) -> list[dict]:
+    """
+    Fetch posts from Reddit search RSS for a given topic.
+    No API key required. Returns dicts in the same format as NewsAPI articles.
+    """
+    try:
+        encoded_topic = quote_plus(topic)
+        url = f"https://www.reddit.com/search.rss?q={encoded_topic}&sort=new&limit=10"
+        feed = feedparser.parse(url)
+
+        articles = []
+        for entry in feed.entries[:10]:
+            articles.append({
+                "title": entry.get("title", ""),
+                "description": entry.get("summary", ""),
+                "content": entry.get("summary", ""),
+                "url": entry.get("link", ""),
+                "publishedAt": entry.get("published", entry.get("updated", "")),
+                "source": {"name": "Reddit"},
+            })
+
+        logger.info(f"Reddit RSS: fetched {len(articles)} articles for topic '{topic}'")
+        return articles
+    except Exception as e:
+        logger.warning(f"Reddit RSS fetch failed for topic '{topic}': {e}")
+        return []
+
+
+def _fetch_from_yahoo_news_rss(topic: str) -> list[dict]:
+    """
+    Fetch articles from Yahoo News RSS for a given topic.
+    No API key required. Returns dicts in the same format as NewsAPI articles.
+    """
+    try:
+        encoded_topic = quote_plus(topic)
+        url = f"https://news.yahoo.com/rss/search?p={encoded_topic}"
+        feed = feedparser.parse(url)
+
+        articles = []
+        for entry in feed.entries[:10]:
+            articles.append({
+                "title": entry.get("title", ""),
+                "description": entry.get("summary", ""),
+                "content": entry.get("summary", ""),
+                "url": entry.get("link", ""),
+                "publishedAt": entry.get("published", ""),
+                "source": {"name": "Yahoo News"},
+            })
+
+        logger.info(f"Yahoo News RSS: fetched {len(articles)} articles for topic '{topic}'")
+        return articles
+    except Exception as e:
+        logger.warning(f"Yahoo News RSS fetch failed for topic '{topic}': {e}")
         return []

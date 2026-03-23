@@ -1,19 +1,57 @@
 # filepath: market-research-platform/backend/core/llamaindex_engine.py
 # Singleton wrapper around all LlamaIndex resources.
 # Initializes the LLM, embedding model, PGVectorStore, and VectorStoreIndex.
-# All ingestion, query, and summary engines are built on top of this foundation.
+# Supports configurable providers: Gemini (default) or OpenAI.
 
 import logging
 
 from llama_index.core import VectorStoreIndex, StorageContext, Settings as LISettings
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.postgres import PGVectorStore
 
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+# Embedding dimensions per provider
+EMBED_DIMS = {
+    "gemini": 3072,   # models/gemini-embedding-001
+    "openai": 1536,   # text-embedding-3-small
+}
+
+
+def _build_gemini():
+    """Create Gemini LLM and embedding model."""
+    from llama_index.llms.gemini import Gemini
+    from llama_index.embeddings.gemini import GeminiEmbedding
+
+    llm = Gemini(
+        model=settings.gemini_llm_model,
+        api_key=settings.gemini_api_key,
+        temperature=0.1,
+    )
+    embed_model = GeminiEmbedding(
+        model_name=settings.gemini_embedding_model,
+        api_key=settings.gemini_api_key,
+    )
+    return llm, embed_model
+
+
+def _build_openai():
+    """Create OpenAI LLM and embedding model."""
+    from llama_index.llms.openai import OpenAI
+    from llama_index.embeddings.openai import OpenAIEmbedding
+
+    llm = OpenAI(
+        model=settings.openai_llm_model,
+        api_key=settings.openai_api_key,
+        temperature=0.1,
+    )
+    embed_model = OpenAIEmbedding(
+        model=settings.openai_embedding_model,
+        api_key=settings.openai_api_key,
+    )
+    return llm, embed_model
 
 
 class LlamaIndexEngine:
@@ -34,20 +72,18 @@ class LlamaIndexEngine:
         Set up LLM, embeddings, vector store, and index.
         Called once at application startup in main.py lifespan hook.
         """
-        logger.info("Initializing LlamaIndex engine...")
+        provider = settings.llm_provider.lower()
+        logger.info(f"Initializing LlamaIndex engine with provider: {provider}")
 
-        # Configure the LLM
-        self.llm = OpenAI(
-            model=settings.openai_llm_model,
-            api_key=settings.openai_api_key,
-            temperature=0.1,  # Low temperature for factual, analytical responses
-        )
+        # Build LLM + embeddings based on configured provider
+        if provider == "gemini":
+            self.llm, self.embed_model = _build_gemini()
+        elif provider == "openai":
+            self.llm, self.embed_model = _build_openai()
+        else:
+            raise ValueError(f"Unknown LLM provider: {provider}. Use 'gemini' or 'openai'.")
 
-        # Configure the embedding model
-        self.embed_model = OpenAIEmbedding(
-            model=settings.openai_embedding_model,
-            api_key=settings.openai_api_key,
-        )
+        embed_dim = EMBED_DIMS.get(provider, 768)
 
         # Set LlamaIndex global defaults so all components use these models
         LISettings.llm = self.llm
@@ -67,7 +103,7 @@ class LlamaIndexEngine:
             port=str(settings.postgres_port),
             user=settings.postgres_user,
             table_name="llama_embeddings",
-            embed_dim=1536,  # text-embedding-3-small dimension
+            embed_dim=embed_dim,
         )
 
         self._storage_context = StorageContext.from_defaults(
@@ -80,7 +116,7 @@ class LlamaIndexEngine:
             storage_context=self._storage_context,
         )
 
-        logger.info("LlamaIndex engine initialized successfully.")
+        logger.info(f"LlamaIndex engine initialized successfully (provider={provider}, embed_dim={embed_dim}).")
 
     def get_index(self) -> VectorStoreIndex:
         """Return the initialized VectorStoreIndex. Raise if not initialized."""

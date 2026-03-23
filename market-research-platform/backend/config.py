@@ -9,8 +9,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # ── OpenAI ────────────────────────────────────────────────────────────
-    openai_api_key: str
+    # ── LLM Provider ("gemini" or "openai") ─────────────────────────────
+    llm_provider: str = "gemini"
+
+    # ── Gemini ──────────────────────────────────────────────────────────
+    gemini_api_key: str = ""
+    gemini_llm_model: str = "models/gemini-2.0-flash"
+    gemini_embedding_model: str = "models/gemini-embedding-001"
+
+    # ── OpenAI ──────────────────────────────────────────────────────────
+    openai_api_key: str = ""
     openai_llm_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
 

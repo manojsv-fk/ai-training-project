@@ -109,17 +109,23 @@ async def status():
 @app.get("/api/settings")
 async def get_settings():
     """Return current application settings (read-only sensitive fields masked)."""
+    provider = settings.llm_provider
+    llm_model = settings.gemini_llm_model if provider == "gemini" else settings.openai_llm_model
+    embed_model = settings.gemini_embedding_model if provider == "gemini" else settings.openai_embedding_model
+
     return {
+        "llm_provider": provider,
+        "llm_model": llm_model,
+        "embedding_model": embed_model,
         "news_topics": settings.news_topics,
         "news_sync_interval_minutes": settings.news_sync_interval_minutes,
         "weekly_brief_cron": settings.weekly_brief_cron,
-        "openai_model": settings.openai_llm_model,
-        "embedding_model": settings.openai_embedding_model,
         "chunk_size": settings.chunk_size,
         "chunk_overlap": settings.chunk_overlap,
         "retrieval_top_k": settings.retrieval_top_k,
         "max_upload_size_mb": settings.max_upload_size_mb,
         "api_keys_configured": {
+            "gemini": bool(settings.gemini_api_key),
             "openai": bool(settings.openai_api_key),
             "llama_cloud": bool(settings.llama_cloud_api_key),
             "newsapi": bool(settings.newsapi_key),

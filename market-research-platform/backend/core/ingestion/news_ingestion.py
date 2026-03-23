@@ -3,7 +3,7 @@
 # converts them to LlamaIndex Documents, and indexes them into PGVectorStore.
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from urllib.parse import quote_plus
 
 import feedparser
@@ -56,7 +56,7 @@ async def run_news_sync(engine: LlamaIndexEngine, db: AsyncSession) -> dict:
             description = article.get("description", "")
             content_text = article.get("content", description)
             source_name = article.get("source", {}).get("name", "Unknown")
-            published = article.get("publishedAt", datetime.now(timezone.utc).isoformat())
+            published = article.get("publishedAt", datetime.utcnow().isoformat())
 
             full_text = f"# {title}\n\nSource: {source_name}\nPublished: {published}\n\n{content_text}"
 
@@ -69,7 +69,7 @@ async def run_news_sync(engine: LlamaIndexEngine, db: AsyncSession) -> dict:
                 source_type=SourceType.news_article,
                 source_name=source_name,
                 original_url=url,
-                ingested_at=datetime.now(timezone.utc),
+                ingested_at=datetime.utcnow(),
                 metadata_={"topic": topic, "published_at": published},
             )
             db.add(doc_record)

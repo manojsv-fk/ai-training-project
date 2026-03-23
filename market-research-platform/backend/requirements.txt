@@ -8,10 +8,15 @@ python-multipart==0.0.9
 
 # ─── LlamaIndex core ─────────────────────────────────────────────────────────
 llama-index-core==0.10.40
+llama-index-vector-stores-postgres==0.1.14
+llama-index-readers-web==0.1.19
+
+# ─── LLM providers (configurable via LLM_PROVIDER env var) ───────────────────
+llama-index-llms-gemini==0.1.11
+llama-index-embeddings-gemini==0.1.8
 llama-index-llms-openai==0.1.22
 llama-index-embeddings-openai==0.1.10
-llama-index-vector-stores-postgres==0.1.6
-llama-index-readers-web==0.1.19
+google-generativeai>=0.5.0
 
 # ─── LlamaParse (PDF parsing — optional, cloud API) ─────────────────────────
 llama-parse==0.4.7
@@ -20,7 +25,7 @@ llama-parse==0.4.7
 pdfplumber==0.11.0
 PyPDF2==3.0.1
 
-# ─── OpenAI client ───────────────────────────────────────────────────────────
+# ─── OpenAI client (required by llama-index-core) ───────────────────────────
 openai==1.30.0
 
 # ─── Database ────────────────────────────────────────────────────────────────

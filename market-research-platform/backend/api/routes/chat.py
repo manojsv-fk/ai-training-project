@@ -27,7 +27,6 @@ _chat_engines: dict[int, ChatEngine] = {}
 async def stream_chat(
     q: str = Query(..., description="User's question"),
     session_id: int | None = Query(default=None),
-    db: AsyncSession = Depends(get_session),
     engine: LlamaIndexEngine = Depends(get_llama_engine),
 ):
     """
@@ -35,19 +34,23 @@ async def stream_chat(
     Creates a new session if session_id is not provided.
     Streams tokens as 'token' events, then fires a final 'sources' event.
     """
-    # Get or create chat session
-    if session_id:
-        result = await db.execute(
-            select(ChatSession).where(ChatSession.id == session_id)
-        )
-        session = result.scalar_one_or_none()
-        if not session:
-            raise HTTPException(status_code=404, detail="Chat session not found.")
-    else:
-        session = ChatSession(messages=[])
-        db.add(session)
-        await db.commit()
-        await db.refresh(session)
+    # Use our own DB session to avoid FastAPI dependency lifecycle issues with SSE
+    from database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        # Get or create chat session
+        if session_id:
+            result = await db.execute(
+                select(ChatSession).where(ChatSession.id == session_id)
+            )
+            session = result.scalar_one_or_none()
+            if not session:
+                raise HTTPException(status_code=404, detail="Chat session not found.")
+        else:
+            session = ChatSession(messages=[])
+            db.add(session)
+            await db.commit()
+            await db.refresh(session)
 
     # Get or create ChatEngine for this session
     chat_engine = _chat_engines.get(session.id)

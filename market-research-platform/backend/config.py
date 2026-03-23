@@ -9,13 +9,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # ── LLM Provider ("gemini" or "openai") ─────────────────────────────
+    # ── LLM Provider ("groq", "gemini", or "openai") ────────────────────
     llm_provider: str = "gemini"
 
     # ── Gemini ──────────────────────────────────────────────────────────
     gemini_api_key: str = ""
     gemini_llm_model: str = "models/gemini-2.0-flash"
     gemini_embedding_model: str = "models/gemini-embedding-001"
+
+    # ── Groq ─────────────────────────────────────────────────────────────
+    groq_api_key: str = ""
+    groq_llm_model: str = "llama-3.3-70b-versatile"
 
     # ── OpenAI ──────────────────────────────────────────────────────────
     openai_api_key: str = ""
